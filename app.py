@@ -2,24 +2,24 @@ import streamlit as st
 import pickle
 import requests
 import numpy as np
-from geopy.geocoders import Nominatim
 
 
 # ==============================
-# Load ML Model
+# Load Model
 # ==============================
 
 model = pickle.load(
-    open("cab_linear_model.pkl", "rb")
+    open("cab_linear_model.pkl","rb")
 )
 
 encoder = pickle.load(
-    open("vehicle_encoder.pkl", "rb")
+    open("vehicle_encoder.pkl","rb")
 )
 
 
+
 # ==============================
-# Page Configuration
+# Page Settings
 # ==============================
 
 st.set_page_config(
@@ -32,9 +32,11 @@ st.set_page_config(
 st.title("🚕 Cab Fare Prediction System")
 
 
+
 # ==============================
 # Vehicle Details
 # ==============================
+
 
 vehicle_details = {
 
@@ -57,35 +59,80 @@ vehicle_details = {
         "mileage":15,
         "time_rate":1
     }
+
 }
 
 
 
+
 # ==============================
-# Location Function
+# OpenStreetMap Location
 # ==============================
+
 
 def get_coordinates(place):
 
-    geolocator = Nominatim(
-        user_agent="cab_prediction_app"
-    )
+    try:
+
+        url="https://nominatim.openstreetmap.org/search"
 
 
-    location = geolocator.geocode(
-        place + ", Tamil Nadu, India"
-    )
+        params={
+
+            "q":place+", Tamil Nadu, India",
+
+            "format":"json",
+
+            "limit":1
+
+        }
 
 
-    if location:
+        headers={
 
-        return (
-            location.latitude,
-            location.longitude
+            "User-Agent":
+            "cab-fare-prediction-app"
+
+        }
+
+
+        response=requests.get(
+
+            url,
+
+            params=params,
+
+            headers=headers,
+
+            timeout=10
+
         )
 
 
-    return None
+        data=response.json()
+
+
+
+        if data:
+
+            return (
+
+                float(data[0]["lat"]),
+
+                float(data[0]["lon"])
+
+            )
+
+
+        return None
+
+
+
+    except Exception:
+
+        return None
+
+
 
 
 
@@ -94,12 +141,14 @@ def get_coordinates(place):
 # OSRM Distance
 # ==============================
 
+
 def get_distance_time(start,target):
 
 
-    start_point = get_coordinates(start)
+    start_point=get_coordinates(start)
 
-    end_point = get_coordinates(target)
+    end_point=get_coordinates(target)
+
 
 
     if start_point is None or end_point is None:
@@ -108,13 +157,17 @@ def get_distance_time(start,target):
 
 
 
-    start_lat,start_lon = start_point
+    start_lat,start_lon=start_point
 
-    end_lat,end_lon = end_point
+    end_lat,end_lon=end_point
 
 
 
-    url = (
+
+    try:
+
+
+        url=(
 
         "https://router.project-osrm.org/route/v1/driving/"
 
@@ -124,119 +177,75 @@ def get_distance_time(start,target):
 
         "?overview=false"
 
-    )
-
-
-    response = requests.get(url)
-
-    data = response.json()
+        )
 
 
 
-    distance = (
+        response=requests.get(
 
-        data["routes"][0]["distance"]
+            url,
 
-        /
+            timeout=10
 
-        1000
-
-    )
+        )
 
 
-    duration = (
-
-        data["routes"][0]["duration"]
-
-        /
-
-        60
-
-    )
+        data=response.json()
 
 
 
-    return round(distance,2),round(duration)
+        distance=(
+
+            data["routes"][0]["distance"]
+
+            /
+
+            1000
+
+        )
+
+
+        duration=(
+
+            data["routes"][0]["duration"]
+
+            /
+
+            60
+
+        )
 
 
 
-
-# ==============================
-# Fare Calculation
-# ==============================
-
-def get_base_fare(distance,vehicle):
-
-
-    rate = {
-
-        "Bike":5,
-        "Auto":8,
-        "Hatchback":12,
-        "Sedan":15
-
-    }
-
-
-    base = {
-
-        "Bike":30,
-        "Auto":40,
-        "Hatchback":50,
-        "Sedan":60
-
-    }
-
-
-    return (
-
-        base[vehicle]
-
-        +
-
-        distance * rate[vehicle]
-
-    )
+        return round(distance,2),round(duration)
 
 
 
-
-def get_driver_fare(distance,vehicle):
-
-
-    driver_rate={
-
-        "Bike":3,
-        "Auto":5,
-        "Hatchback":8,
-        "Sedan":10
-
-    }
+    except Exception:
 
 
-    return distance * driver_rate[vehicle]
-
+        return None,None
 
 
 
 
 # ==============================
-# Input Section
+# User Input
 # ==============================
 
 
-start = st.text_input(
+start=st.text_input(
     "📍 Starting Place"
 )
 
 
-target = st.text_input(
+target=st.text_input(
     "🎯 Target Place"
 )
 
 
 
-vehicle = st.selectbox(
+vehicle=st.selectbox(
 
     "🚘 Select Vehicle",
 
@@ -256,16 +265,10 @@ vehicle = st.selectbox(
 
 
 
-
-# ==============================
-# Find Distance
-# ==============================
-
-
 if st.button("🗺️ Find Distance"):
 
 
-    distance,time = get_distance_time(
+    distance,time=get_distance_time(
 
         start,
 
@@ -274,48 +277,33 @@ if st.button("🗺️ Find Distance"):
     )
 
 
-
     if distance:
 
 
-        st.session_state.map_distance = distance
+        st.session_state.distance=distance
 
-        st.session_state.map_time = time
-
+        st.session_state.time=time
 
 
     else:
 
+
         st.error(
-            "Place not found"
+            "❌ Place not found"
         )
 
 
 
+if "distance" in st.session_state:
 
 
-# ==============================
-# Show Map Distance
-# ==============================
-
-
-if "map_distance" in st.session_state:
-
-
-    distance = st.session_state.map_distance
-
-    time = st.session_state.map_time
-
-
-
-    # Bike Auto Limit
-
-
-    if vehicle in ["Bike","Auto"] and distance > 30:
+    if vehicle in ["Bike","Auto"] and st.session_state.distance > 30:
 
 
         st.error(
+
             f"❌ {vehicle} unavailable above 30 KM"
+
         )
 
 
@@ -323,67 +311,143 @@ if "map_distance" in st.session_state:
 
 
         st.success(
-            f"📏 Distance : {distance} KM"
+
+            f"📏 Distance : {st.session_state.distance} KM"
+
         )
 
 
         st.success(
-            f"⏱️ Time : {time} Minutes"
+
+            f"⏱️ Time : {st.session_state.time} Minutes"
+
         )
+# ==============================
+# Fare Calculation Functions
+# ==============================
+
+
+def get_base_fare(distance,vehicle):
+
+
+    base={
+
+        "Bike":30,
+        "Auto":40,
+        "Hatchback":50,
+        "Sedan":60
+
+    }
+
+
+    per_km={
+
+        "Bike":3,
+        "Auto":6,
+        "Hatchback":8,
+        "Sedan":10
+
+    }
+
+
+    return (
+
+        base[vehicle]
+
+        +
+
+        distance * per_km[vehicle]
+
+    )
+
+
+
+
+
+def get_driver_fare(distance,vehicle):
+
+
+    rate={
+
+        "Bike":3,
+        "Auto":5,
+        "Hatchback":8,
+        "Sedan":10
+
+    }
+
+
+    return distance * rate[vehicle]
+
+
 
 
 
 # ==============================
-# Estimated Fare
+# ML Estimated Fare
 # ==============================
 
 
-if st.button("🤖 Predict Estimated Fare"):
+if st.button(
+    "🤖 Predict Estimated Fare"
+):
 
 
-    if "map_distance" not in st.session_state:
+    if "distance" not in st.session_state:
 
 
         st.warning(
+
             "First find distance"
+
         )
 
 
     else:
 
 
-        distance = st.session_state.map_distance
 
-        duration = st.session_state.map_time
+        distance=st.session_state.distance
 
+        duration=st.session_state.time
+
+
+
+
+        # Bike Auto Limit
 
 
         if vehicle in ["Bike","Auto"] and distance > 30:
 
 
             st.error(
-                "Vehicle unavailable"
+
+                f"❌ {vehicle} unavailable above 30 KM"
+
             )
+
 
         else:
 
 
 
-            mileage = vehicle_details[vehicle]["mileage"]
+            mileage=vehicle_details[vehicle]["mileage"]
 
 
-            petrol_price = 110
+            petrol_price=110
 
 
-            fuel_cost = (
+
+            fuel_cost=(
 
                 distance/mileage
 
-            ) * petrol_price
+            )*petrol_price
 
 
 
-            encoded_vehicle = encoder.transform(
+
+            vehicle_encoded=encoder.transform(
 
                 [vehicle]
 
@@ -391,15 +455,16 @@ if st.button("🤖 Predict Estimated Fare"):
 
 
 
-            data=np.array([
 
-                [
+            input_data=np.array(
+
+                [[
 
                     distance,
 
                     duration,
 
-                    encoded_vehicle,
+                    vehicle_encoded,
 
                     mileage,
 
@@ -407,18 +472,28 @@ if st.button("🤖 Predict Estimated Fare"):
 
                     fuel_cost
 
-                ]
+                ]]
 
-            ])
-
-
-
-            prediction=model.predict(data)[0]
-
-
-            st.session_state.estimated = round(
-                prediction
             )
+
+
+
+
+            prediction=model.predict(
+
+                input_data
+
+            )[0]
+
+
+
+            st.session_state.estimated=round(
+
+                prediction
+
+            )
+
+
 
 
 
@@ -430,12 +505,13 @@ if "estimated" in st.session_state:
         f"🤖 Estimated Fare : ₹{st.session_state.estimated}"
 
     )
+
 # ==============================
 # Actual Fare Calculation
 # ==============================
 
 
-if "map_distance" in st.session_state:
+if "distance" in st.session_state:
 
 
     st.divider()
@@ -455,7 +531,7 @@ if "map_distance" in st.session_state:
 
         min_value=0.0,
 
-        value=float(st.session_state.map_distance),
+        value=float(st.session_state.distance),
 
         step=0.1
 
@@ -465,14 +541,13 @@ if "map_distance" in st.session_state:
 
     # Editable Actual Time
 
-
     actual_time = st.number_input(
 
         "⏱️ Actual Time (Minutes)",
 
         min_value=0,
 
-        value=int(st.session_state.map_time),
+        value=int(st.session_state.time),
 
         step=1
 
@@ -483,12 +558,14 @@ if "map_distance" in st.session_state:
 
 
     if st.button(
+
         "💰 Calculate Actual Fare"
+
     ):
 
 
 
-        # Bike Auto Restriction
+        # Vehicle restriction
 
 
         if vehicle in ["Bike","Auto"] and actual_distance > 30:
@@ -496,7 +573,7 @@ if "map_distance" in st.session_state:
 
             st.error(
 
-                f"❌ {vehicle} is unavailable above 30 KM"
+                f"❌ {vehicle} unavailable above 30 KM"
 
             )
 
@@ -523,7 +600,6 @@ if "map_distance" in st.session_state:
                 mileage
 
             )
-
 
 
             fuel_cost = (
@@ -568,7 +644,6 @@ if "map_distance" in st.session_state:
 
 
 
-
             # Time Cost
 
 
@@ -585,8 +660,7 @@ if "map_distance" in st.session_state:
 
 
 
-
-            # Final Actual Price
+            # Final Actual Fare
 
 
             actual_fare = (
@@ -618,8 +692,7 @@ if "map_distance" in st.session_state:
 
 
 
-
-            st.session_state.actual_details={
+            st.session_state.details={
 
 
                 "fuel_used":fuel_used,
@@ -645,37 +718,45 @@ if "map_distance" in st.session_state:
 # ==============================
 
 
-
 if "actual" in st.session_state:
 
 
-
-    details = st.session_state.actual_details
+    details=st.session_state.details
 
 
 
     st.write(
+
         f"⛽ Fuel Used : {details['fuel_used']:.2f} L"
+
     )
 
 
     st.write(
+
         f"⛽ Fuel Cost : ₹{details['fuel_cost']:.0f}"
+
     )
 
 
     st.write(
+
         f"🧾 Base Fare : ₹{details['base_fare']:.0f}"
+
     )
 
 
     st.write(
+
         f"👨‍✈️ Driver Fare : ₹{details['driver_fare']:.0f}"
+
     )
 
 
     st.write(
+
         f"⏱️ Time Cost : ₹{details['time_cost']:.0f}"
+
     )
 
 
@@ -693,9 +774,8 @@ if "actual" in st.session_state:
 
 
 # ==============================
-# Fare Difference
+# Difference
 # ==============================
-
 
 
 if (
@@ -720,9 +800,8 @@ if (
     )
 
 
-
     st.warning(
 
-        f"📊 Estimated vs Actual Difference : ₹{difference}"
+        f"📊 Difference : ₹{difference}"
 
     )
